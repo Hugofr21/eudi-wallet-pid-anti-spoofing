@@ -21,4 +21,10 @@ interface PinStorageProvider {
     fun isPinValid(pin: String): Boolean
     fun hasPin(): Boolean
     fun clearPin()
+
+    fun getFailedAttempts(): Int
+    fun recordFailedAttempt(): Int
+    fun resetFailedAttempts()
+    fun getLockoutUntil(): Long
+    fun setLockoutUntil(timestampMs: Long)
 }

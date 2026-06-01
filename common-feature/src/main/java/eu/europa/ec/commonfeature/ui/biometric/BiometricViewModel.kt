@@ -208,6 +208,22 @@ class BiometricViewModel(
                         is QuickPinInteractorPinValidPartialState.Success -> {
                             authenticationSuccess()
                         }
+
+                        is QuickPinInteractorPinValidPartialState.LockedOut -> {
+                            val secondsLeft = (it.lockoutDurationMs / 1000).coerceAtLeast(1)
+                            val formattedTime = if (secondsLeft > 60) {
+                                "${secondsLeft / 60}m ${secondsLeft % 60}s"
+                            } else {
+                                "${secondsLeft}s"
+                            }
+
+                            setState {
+                                copy(
+                                    quickPinError = "${it.errorMessage} (Loading $formattedTime)",
+                                    quickPin = "",
+                                )
+                            }
+                        }
                     }
                 }
         }

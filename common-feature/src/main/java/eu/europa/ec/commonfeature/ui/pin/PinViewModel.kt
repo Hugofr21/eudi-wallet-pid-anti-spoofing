@@ -46,6 +46,7 @@ import kotlinx.coroutines.launch
 import org.koin.android.annotation.KoinViewModel
 import org.koin.core.annotation.InjectedParam
 
+
 enum class PinValidationState {
     ENTER,
     REENTER,
@@ -195,9 +196,19 @@ class PinViewModel(
             interactor.isCurrentPinValid(pin = currentPin).collect {
                 when (it) {
                     is QuickPinInteractorPinValidPartialState.Failed -> {
-                        setState { copy(quickPinError = it.errorMessage) }
+                        setState { copy(quickPinError = it.errorMessage, resetPin = true, pin = "") }
                     }
-
+                    is QuickPinInteractorPinValidPartialState.LockedOut -> {
+                        val secondsLeft = it.lockoutDurationMs / 1000
+                        setState {
+                            copy(
+                                quickPinError = "${it.errorMessage} ($secondsLeft s)",
+                                resetPin = true,
+                                pin = "",
+                                isButtonEnabled = false
+                            )
+                        }
+                    }
                     QuickPinInteractorPinValidPartialState.Success -> {
                         setupEnterPhase(cachedCurrentPin = currentPin)
                     }
@@ -243,10 +254,16 @@ class PinViewModel(
         when (result) {
             is QuickPinInteractorSetPinPartialState.Failed -> {
                 setState {
+                    copy(quickPinError = result.errorMessage, resetPin = true, pin = "")
+                }
+            }
+            is QuickPinInteractorSetPinPartialState.LockedOut -> {
+                setState {
                     copy(
                         quickPinError = result.errorMessage,
                         resetPin = true,
                         pin = "",
+                        isButtonEnabled = false
                     )
                 }
             }
@@ -258,14 +275,12 @@ class PinViewModel(
             }
         }
     }
+
     private fun saveNewPin(newPinInput: String, firstInput: String) {
         viewModelScope.launch {
 
-            // Lógica bifurcada dependendo do fluxo (CREATE vs UPDATE)
             when (pinFlow) {
                 PinFlow.CREATE -> {
-                    // Fluxo de criação: delega a validação de igualdade ao Interactor
-                    // Ajuste de nomenclatura: 'confirmationPin' para clareza
                     interactor.setPin(
                         newPin = newPinInput,
                         confirmationPin = firstInput
@@ -273,15 +288,13 @@ class PinViewModel(
                 }
 
                 PinFlow.UPDATE -> {
-                    // SEGURANÇA: No fluxo de Update, o interactor espera (Velho, Novo).
-                    // Portanto, o ViewModel DEVE validar se a confirmação bate antes de chamar o interactor.
                     if (newPinInput != firstInput) {
                         setState {
                             copy(
                                 quickPinError = resourceProvider.getString(R.string.quick_pin_non_match),
                                 resetPin = true,
                                 pin = ""
-                                // Opcional: Voltar para o estado ENTER para forçar redigitação completa
+
                             )
                         }
                         return@launch
@@ -289,12 +302,11 @@ class PinViewModel(
 
                     val oldPin = viewState.value.cachedCurrentPin
                     if (oldPin.isEmpty()) {
-                        // Estado inválido: tentou trocar senha sem validar a antiga
+
                         setEffect { Effect.Navigation.Pop }
                         return@launch
                     }
 
-                    // Chama a troca segura passando a credencial antiga
                     interactor.changePin(
                         currentPin = oldPin,
                         newPin = newPinInput

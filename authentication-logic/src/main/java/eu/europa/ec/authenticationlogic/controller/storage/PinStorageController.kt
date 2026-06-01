@@ -23,11 +23,25 @@ interface PinStorageController {
     fun isPinValid(pin: String): Boolean
     fun hasPin(): Boolean
     fun clearPin()
+
+    fun getFailedAttempts(): Int
+    fun recordFailedAttempt(): Int
+    fun resetFailedAttempts()
+    fun getLockoutUntil(): Long
+    fun setLockoutUntil(timestampMs: Long)
 }
 
 class PinStorageControllerImpl(private val storageConfig: StorageConfig) : PinStorageController {
     override fun hasPin(): Boolean = storageConfig.pinStorageProvider.hasPin()
     override fun clearPin() = storageConfig.pinStorageProvider.clearPin()
+    override fun getFailedAttempts(): Int = storageConfig.pinStorageProvider.getFailedAttempts()
     override fun setPin(pin: String) = storageConfig.pinStorageProvider.setPin(pin)
     override fun isPinValid(pin: String): Boolean = storageConfig.pinStorageProvider.isPinValid(pin)
+    override fun recordFailedAttempt(): Int = storageConfig.pinStorageProvider.recordFailedAttempt()
+    override fun resetFailedAttempts() = storageConfig.pinStorageProvider.resetFailedAttempts()
+    override fun getLockoutUntil(): Long = storageConfig.pinStorageProvider.getLockoutUntil()
+    override fun setLockoutUntil(timestampMs: Long) = storageConfig.pinStorageProvider.setLockoutUntil(timestampMs)
+
+
+
 }

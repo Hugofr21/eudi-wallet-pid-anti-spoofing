@@ -49,6 +49,11 @@ class QuickPinInteractorImpl(
     private val resourceProvider: ResourceProvider,
 ) : FormValidator by formValidator, QuickPinInteractor {
 
+    companion object {
+        private const val MAX_FAILED_ATTEMPTS = 5
+        private const val LOCKOUT_DURATION_MS = 60_000L
+    }
+
     private val genericErrorMsg
         get() = resourceProvider.genericErrorMessage()
 
@@ -58,8 +63,6 @@ class QuickPinInteractorImpl(
         newPin: String,
         confirmationPin: String
     ): Flow<QuickPinInteractorSetPinPartialState> = flow {
-
-        // 1. Validação de Integridade (Match)
         if (newPin != confirmationPin) {
             emit(QuickPinInteractorSetPinPartialState.Failed(
                 resourceProvider.getString(R.string.quick_pin_non_match)
@@ -67,16 +70,13 @@ class QuickPinInteractorImpl(
             return@flow
         }
 
-        // 2. Validação de Segurança (Complexidade)
         if (isPinWeak(newPin)) {
-            // CORREÇÃO: Uso de ResourceProvider ao invés de string hardcoded
             emit(QuickPinInteractorSetPinPartialState.Failed(
                 resourceProvider.getString(R.string.quick_pin_too_weak_error)
             ))
             return@flow
         }
 
-        // 3. Persistência Segura
         pinStorageController.setPin(newPin)
         emit(QuickPinInteractorSetPinPartialState.Success)
 
@@ -88,28 +88,48 @@ class QuickPinInteractorImpl(
         currentPin: String,
         newPin: String
     ): Flow<QuickPinInteractorSetPinPartialState> = flow {
-        if (!pinStorageController.isPinValid(currentPin)) {
-            emit(QuickPinInteractorSetPinPartialState.Failed(
-                resourceProvider.getString(R.string.quick_pin_invalid_error)
+
+        if (isCurrentlyLockedOut()) {
+            val remainingMs = pinStorageController.getLockoutUntil() - System.currentTimeMillis()
+            emit(QuickPinInteractorSetPinPartialState.LockedOut(
+                remainingMs,
+                "Device locked due to multiple attempts.."
             ))
             return@flow
         }
 
+        if (!pinStorageController.isPinValid(currentPin)) {
+            val attempts = pinStorageController.recordFailedAttempt()
+            if (attempts >= MAX_FAILED_ATTEMPTS) {
+                pinStorageController.setLockoutUntil(System.currentTimeMillis() + LOCKOUT_DURATION_MS)
+                emit(QuickPinInteractorSetPinPartialState.LockedOut(
+                    LOCKOUT_DURATION_MS,
+                    "Too many failed attempts. Try again later."
+                ))
+            } else {
+                emit(QuickPinInteractorSetPinPartialState.Failed(
+                    resourceProvider.getString(R.string.quick_pin_invalid_error)
+                ))
+            }
+            return@flow
+        }
+
+        pinStorageController.resetFailedAttempts()
+
 
         if (isPinWeak(newPin)) {
             emit(QuickPinInteractorSetPinPartialState.Failed(
-                "O PIN é muito simples."
+                resourceProvider.getString(R.string.quick_pin_too_weak_error)
             ))
             return@flow
         }
 
         if (currentPin == newPin) {
             emit(QuickPinInteractorSetPinPartialState.Failed(
-                "O novo PIN não pode ser igual ao atual."
+                "The new PIN cannot be the same as the current one.."
             ))
             return@flow
         }
-
 
         pinStorageController.setPin(newPin)
         emit(QuickPinInteractorSetPinPartialState.Success)
@@ -119,15 +139,45 @@ class QuickPinInteractorImpl(
     }
 
     override fun isCurrentPinValid(pin: String): Flow<QuickPinInteractorPinValidPartialState> = flow {
+        if (isCurrentlyLockedOut()) {
+            val remainingMs = pinStorageController.getLockoutUntil() - System.currentTimeMillis()
+            emit(QuickPinInteractorPinValidPartialState.LockedOut(
+                remainingMs,
+                "Many attempts. Wait before trying again."
+            ))
+            return@flow
+        }
+
         if (pinStorageController.isPinValid(pin)) {
+            pinStorageController.resetFailedAttempts()
             emit(QuickPinInteractorPinValidPartialState.Success)
         } else {
-            emit(QuickPinInteractorPinValidPartialState.Failed(
-                resourceProvider.getString(R.string.quick_pin_invalid_error)
-            ))
+            val attempts = pinStorageController.recordFailedAttempt()
+            val attemptsLeft = MAX_FAILED_ATTEMPTS - attempts
+
+            if (attempts >= MAX_FAILED_ATTEMPTS) {
+                pinStorageController.setLockoutUntil(System.currentTimeMillis() + LOCKOUT_DURATION_MS)
+                emit(QuickPinInteractorPinValidPartialState.LockedOut(
+                    LOCKOUT_DURATION_MS,
+                    "Device locked for security reasons.."
+                ))
+            } else {
+                emit(QuickPinInteractorPinValidPartialState.Failed(
+                    resourceProvider.getString(R.string.quick_pin_invalid_error),
+                    attemptsLeft
+                ))
+            }
         }
     }.safeAsync {
         QuickPinInteractorPinValidPartialState.Failed(it.localizedMessage ?: genericErrorMsg)
+    }
+
+
+
+
+    private fun isCurrentlyLockedOut(): Boolean {
+        val lockoutDeadline = pinStorageController.getLockoutUntil()
+        return System.currentTimeMillis() < lockoutDeadline
     }
 
     private fun isPinWeak(pin: String): Boolean {
@@ -135,14 +185,16 @@ class QuickPinInteractorImpl(
         return pin.length < 4 || sequences.contains(pin)
     }
 }
+sealed class QuickPinInteractorPinValidPartialState {
+    data object Success : QuickPinInteractorPinValidPartialState()
+    data class Failed(val errorMessage: String, val attemptsLeft: Int? = null) : QuickPinInteractorPinValidPartialState()
+    data class LockedOut(val lockoutDurationMs: Long, val errorMessage: String) : QuickPinInteractorPinValidPartialState()
+}
+
 sealed class QuickPinInteractorSetPinPartialState {
     data object Success : QuickPinInteractorSetPinPartialState()
     data class Failed(val errorMessage: String) : QuickPinInteractorSetPinPartialState()
-}
-
-sealed class QuickPinInteractorPinValidPartialState {
-    data object Success : QuickPinInteractorPinValidPartialState()
-    data class Failed(val errorMessage: String) : QuickPinInteractorPinValidPartialState()
+    data class LockedOut(val lockoutDurationMs: Long, val errorMessage: String) : QuickPinInteractorSetPinPartialState()
 }
 
 sealed class QuickBiometricInteractorSetPinPartialState {

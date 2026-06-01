@@ -50,6 +50,10 @@
 
     <uses-permission android:name="android.permission.CAMERA" />
 
+    <uses-feature
+        android:name="android.hardware.strongbox_keystore"
+        android:required="false" />
+
 
     <uses-permission android:name="android.permission.HIDE_OVERLAY_WINDOWS" />
 
