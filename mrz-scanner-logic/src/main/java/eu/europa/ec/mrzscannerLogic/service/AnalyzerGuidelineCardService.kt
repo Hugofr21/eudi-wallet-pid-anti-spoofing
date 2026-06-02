@@ -48,11 +48,11 @@ class AnalyzerGuidelineCardServiceImpl(
 
     private var zeroSpecularFrames = 0
 
-    // sliding windows de energia Moiré (5 frames)
+    // Moiré sliding power windows (5 frames)
     private val moireEnergyWindow = ArrayDeque<Float>(5)
 
-    // Centróides de gradiente por quadrante para homografia
-    // [cx0,cy0, cx1,cy1, cx2,cy2, cx3,cy3] — rastreia conteúdo real da imagem
+    // Quadrant-based gradient centroids for homography
+    // [cx0,cy0, cx1,cy1, cx2,cy2, cx3,cy3] — tracks actual image content
     private var previousGradientCentroids: FloatArray? = null
 
 
@@ -79,8 +79,8 @@ class AnalyzerGuidelineCardServiceImpl(
 
         val results = mutableListOf<CheckResult>()
 
-        // FASE 1: EXECUÇÃO PARALELA (MULTI-THREADING)
-        // Lançamos todas as métricas críticas em simultâneo nas threads disponíveis.
+        // PHASE 1: PARALLEL EXECUTION (MULTI-THREADING)
+        // We run all critical metrics simultaneously on the available threads.
         val phase1Deferred = listOfNotNull(
             if (config.checkMoirePattern) async { runCheck(AntiSpoofingCheck.MOIRE_PATTERN) { checkMoirePattern(bitmap) } } else null,
             if (config.checkHomographyPlanarity) async { runCheck(AntiSpoofingCheck.HOMOGRAPHY_PLANARITY) { checkHomographyPlanarity(bitmap) } } else null,
@@ -89,26 +89,24 @@ class AnalyzerGuidelineCardServiceImpl(
             if (config.checkSpecularReflection) async { runCheck(AntiSpoofingCheck.SPECULAR_REFLECTION) { checkSpecularReflection(bitmap) } } else null
         )
 
-        // Aguardamos que todas as threads terminem o seu cálculo
         results.addAll(phase1Deferred.awaitAll())
 
-        // PORTÃO LÓGICO (FAST-FAIL)
         val hasCriticalFailure = results.any { it.check in VETO_CHECKS && it.score < 0.25f }
         if (hasCriticalFailure) {
             val score = computeFinalScore(results)
-            log.w("AntiSpoofing") { "[FAST-FAIL] Fraude detetada. Abortando testes pesados." }
+            log.w("AntiSpoofing") { "[FAST-FAIL] Fraud detected. Aborting heavy testing.." }
             return@withContext AntiSpoofingReport(false, score, results, classifyAttackType(results, score))
         }
 
-        // FASE 2: Sensores Nativos (Instantâneo)
+        // PHASE 2: Native Sensors (Instantaneous)
         if (config.checkGyroscope && gyroscopeMatrix != null) results += runCheck(AntiSpoofingCheck.GYROSCOPE) { checkGyroscopeConsistency(bitmap, gyroscopeMatrix) }
         if (config.checkAccelerometer && accelerometerData != null) results += runCheck(AntiSpoofingCheck.ACCELEROMETER) { checkAccelerometerStability(accelerometerData) }
 
         val currentScore = computeFinalScore(results)
 
-        // FASE 3: Análise Pesada (Apenas em caso de dúvida)
+        // PHASE 3: In-Depth Analysis (Only if in doubt)
         if (currentScore < 0.80f) {
-            log.d("AntiSpoofing") { "[FAST-PASS] Score marginal ($currentScore). Executando em paralelo análise pesada..." }
+            log.d("AntiSpoofing") { "[FAST-PASS] Marginal score ($currentScore). Running heavy analysis in parallel..." }
 
             val phase3Deferred = listOfNotNull(
                 if (config.checkImageQuality) async { runCheck(AntiSpoofingCheck.IMAGE_QUALITY) { checkImageQuality(bitmap) } } else null,
@@ -130,10 +128,10 @@ class AnalyzerGuidelineCardServiceImpl(
     private fun computeFinalScore(results: List<CheckResult>): Float {
         if (results.isEmpty()) return 1f
 
-        // Limiar ajustado de 0.35 para 0.25. Dá tolerância a pequenos erros de foco ou lag da CPU.
+        // Threshold adjusted from 0.35 to 0.25. Provides tolerance for small focus errors or CPU lag.
         for (r in results) {
             if (r.check in VETO_CHECKS && r.score < 0.25f) {
-                log.w("AntiSpoofing") { "[VETO TRIGGER] Rejeição imediata por ${r.check.name} (score=${r.score})" }
+                log.w("AntiSpoofing") { "[VETO TRIGGER] Immediate rejection by ${r.check.name} (score=${r.score})" }
                 return minOf(r.score, 0.15f)
             }
         }
@@ -184,12 +182,16 @@ class AnalyzerGuidelineCardServiceImpl(
         }
 
     // =========================================================================
-    // TÉCNICA 1 — Reflexão Especular
+    // TECHNIQUE 1 — Specular Reflection
     //
-    // FIX v5b: limiar zeroSpecularFrames 3 → 5.
-    // O cartão real perde o ângulo de flash em frames intermédios
-    // (avgLum=155→110→139 nos logs), causando bloqueio falso aos 3 frames.
-    // 5 frames consecutivos sem reflexo ≈ 1 segundo a ~5fps de análise.
+
+    // FIX v5b: zero SpecularFrames limit 3 → 5.
+
+    // The actual card loses the flash angle in intermediate frames
+    // (avgLum=155→110→139 in the logs), causing false locking in 3 frames.
+
+    // 5 consecutive frames without reflection ≈ 1 second at ~5fps analysis.
+
     // =========================================================================
 
     private fun checkSpecularReflection(bitmap: Bitmap): Pair<Float, String?> {
@@ -211,17 +213,17 @@ class AnalyzerGuidelineCardServiceImpl(
 
         return when {
             ratio > 0.70f ->
-                Pair(0.15f, "Saturação total — ecrã emissor de luz ou clarão extremo (ratio=${"%.2f".format(ratio)})")
+                Pair(0.15f, "Full saturation — screen emitting light or extreme glare. (ratio=${"%.2f".format(ratio)})")
             ratio in 0.0001f..0.06f ->
                 Pair(0.90f, null)
             ratio > 0.06f && avgLum > 170f ->
                 Pair(0.70f, null)
             ratio > 0.18f && avgLum <= 170f ->
-                Pair(0.35f, "Brilho artificial excessivo — possível ecrã (ratio=${"%.3f".format(ratio)})")
+                Pair(0.35f, "Excessive artificial brightness — possible screen (ratio=${"%.3f".format(ratio)})")
             ratio == 0f && avgLum < 50f ->
                 Pair(0.55f, null)
             ratio == 0f && zeroSpecularFrames >= 5 ->
-                Pair(0.35f, "Ausência persistente de reflexo ($zeroSpecularFrames frames) — possível papel fosco")
+                Pair(0.35f, "Persistent absence of reflexes ($zeroSpecularFrames frames) — possível papel fosco")
             ratio == 0f ->
                 Pair(0.60f, null)
             else ->
@@ -232,26 +234,24 @@ class AnalyzerGuidelineCardServiceImpl(
     private fun pixelToHsvV(px: Int) = maxOf(Color.red(px), Color.green(px), Color.blue(px))
 
     // =========================================================================
-    // TÉCNICA 2 — Moiré (v5b)
+    // TECHNIQUE 2 — Moiré (v5b)
     //
-    // Três problemas identificados nos logs com cartão real:
+    // Three problems identified in the logs with real card: //
+    // PROBLEM A — FFT@128 macroScreen=true with a 12–14 ratio:
+    // At 128pt the macro ring (radius 11–30) captures the CC PT guilloche.
+    // FIX: macroScreen disabled for fftSize <256.
     //
-    // PROBLEMA A — FFT@128 macroScreen=true com ratio 12–14:
-    //   A 128pt o anel macro (raio 11–30) captura o guilhoché do CC PT.
-    //   FIX: macroScreen desativado para fftSize < 256.
-    //
-    // PROBLEMA B — macroRatio > 10 demasiado permissivo:
-    //   Guilhoché do CC PT atinge ratios 10–16 a 256pt e 512pt.
-    //   FIX: maxMagMacro > 80.0 (era 40.0) e macroPeakRatio > 20.0 (era 10.0).
-    //   Ecrã OLED genuíno produz maxMagMacro >> 100 e ratio >> 20.
-    //
-    // PROBLEMA C — λc=0.018 demasiado próximo da energia do cartão real:
-    //   Cartão real nos logs: energy 0.0087–0.0189.
-    //   FIX: λc=0.025. Cartão real fica abaixo; ecrã genuíno tipicamente > 0.030.
-    //
-    // PROBLEMA D — fftAlert sem energyAlert devolvia fftWorstScore directamente:
-    //   Um macroScreen=true isolado resultava em score 0.10 sem confirmação.
-    //   FIX: quando só fftAlert, score = max(fftWorstScore, 0.42f).
+    // PROBLEM B — macroRatio > 10 too permissive:
+    // CC PT guilloche reaches ratios of 10–16 at 256pt and 512pt.
+    // FIX: maxMagMacro > 80.0 (was 40.0) and macroPeakRatio > 20.0 (was 10.0).
+    // Genuine OLED screen produces maxMagMacro >> 100 and ratio >> 20.
+    // PROBLEM C — λc=0.018 very close to the actual card energy:
+    // Actual card in logs: energy 0.0087–0.0189.
+    // FIX: λc=0.025. Actual card is below; genuine screen typically > 0.030.
+    // PROBLEM D — fftAlert without energyAlert would return fftWorstScore directly:
+    // An isolated macroScreen = true resulted in a score of 0.10 without confirmation.
+    // FIX: when only fftAlert, score = max(fftWorstScore, 0.42f).
+
     // =========================================================================
 
     private val FFT_SCALES = intArrayOf(128, 256)
@@ -266,7 +266,7 @@ class AnalyzerGuidelineCardServiceImpl(
         val avgMoireEnergy = if (moireEnergyWindow.isNotEmpty())
             moireEnergyWindow.average().toFloat() else 0f
 
-        // B) FFT multi-escala
+        // B) FFT multi-scal
         var fftWorstScore = 1f
         var fftWorstReason: String? = null
         for (sz in FFT_SCALES) {
@@ -285,24 +285,24 @@ class AnalyzerGuidelineCardServiceImpl(
         }
 
         return when {
-            // Confirmação dupla: energia persistente E FFT suspeita
+            //Double confirmation: persistent energy AND suspicious FFT
             energyAlert && fftAlert ->
-                Pair(minOf(fftWorstScore, 0.15f), fftWorstReason ?: "Padrão Moiré persistente confirmado por energia+FFT")
-            // FIX v5b: FFT suspeito sem suporte de energia → score amortecido
+                Pair(minOf(fftWorstScore, 0.15f), fftWorstReason ?: "Persistent moiré pattern confirmed by energy+FFT")
+            // FIX v5b: Suspected FFT without power support -> damped scoring
             fftAlert ->
                 Pair(maxOf(fftWorstScore, 0.42f), fftWorstReason)
-            // Energia elevada sem pico FFT → aguarda confirmação
+            // High energy without peak FFT > awaiting confirmation
             energyAlert ->
-                Pair(0.40f, "Energia Moiré elevada sem pico FFT claro — a aguardar confirmação")
+                Pair(0.40f, "High Moiré energy without clear FFT peak — awaiting confirmation.")
             else ->
                 Pair(0.95f, null)
         }
     }
 
     /**
-     * Acumulação de energia Moiré — kernel laplaciano Yang et al. 2023 (Eq.1).
-     * Kernel: [-1,-1,-1; -1,8,-1; -1,-1,-1]. Score normalizado [0..1].
-     * Valores > λc (0.025) indicam presença de padrão Moiré.
+     * Moiré energy accumulation — Laplacian kernel Yang et al. 2023 (Eq.1).
+     * Kernel: [-1,-1,-1; -1,8,-1; -1,-1,-1]. Normalized score [0..1].
+     * Values ​​> λc (0.025) indicate the presence of a Moiré pattern.
      */
     private fun moireEnergyAccumulation(bitmap: Bitmap): Float {
         val sz = 256
@@ -323,13 +323,13 @@ class AnalyzerGuidelineCardServiceImpl(
     }
 
     /**
-     * FFT numa escala específica.
+     * FFT at a specific scale.
      *
      * FIX v5b — macroScreen:
-     *   • Desativado para fftSize < 256 (guilhoché activa falsos positivos a 128pt)
-     *   • maxMagMacro > 80.0 (era 40.0)
-     *   • macroPeakRatio > 20.0 (era 10.0) — guilhoché CC PT atinge 10–16
-     *   • macroPeaks in 4..12 (era 4..20)
+     * • Disabled for fftSize < 256 (guilloche activates false positives at 128pt)
+     * • maxMagMacro > 80.0 (was 40.0)
+     * • macroPeakRatio > 20.0 (was 10.0) — CC PT guilloche hits 10–16
+     * • macroPeaks at 4..12 (was 4..20)
      */
     private fun checkMoireAtScale(bitmap: Bitmap, fftSize: Int): Pair<Float, String?> {
         val gray = bitmapToGrayResized(bitmap, fftSize, fftSize)
@@ -353,7 +353,7 @@ class AnalyzerGuidelineCardServiceImpl(
         val sf               = fftSize / 256.0
         val innerMoireRadius = 60.0 * sf
         val macroInner       = 22.0 * sf
-        val macroOuter       = 60.0 * sf - 0.5 // exclusivo para evitar sobreposição a 128pt
+        val macroOuter       = 60.0 * sf - 0.5 // Exclusive design to avoid overlapping at 128pt.
 
         var maxMagMoire = 0.0
         var maxMagMacro = 0.0; var sumMagMacro = 0.0; var countMacro = 0
@@ -387,11 +387,11 @@ class AnalyzerGuidelineCardServiceImpl(
             }
         }
 
-        // FIX v5b: macroScreen apenas a 256pt+, com limiares mais exigentes
+        // FIX v5b: macroScreen only in 256pt+, with more stringent limits.
         val isMacroScreen = fftSize >= 256
-                && maxMagMacro    > 80.0    // era 40.0
-                && macroPeakRatio > 20.0    // era 10.0
-                && macroPeaks     in 4..12  // era 4..20
+                && maxMagMacro    > 80.0    // was 40.0
+                && macroPeakRatio > 20.0    // was 10.0
+                && macroPeaks     in 4..12  // was 4..20
 
         log.d("AntiSpoofing") {
             "[FFT@$fftSize] moirePeaks=$moirePeaks macroPeaks=$macroPeaks" +
@@ -401,9 +401,9 @@ class AnalyzerGuidelineCardServiceImpl(
 
         return when {
             isMacroScreen ->
-                Pair(0.10f, "Matriz de subpíxeis detetada @${fftSize}pt (ratio=${"%.1f".format(macroPeakRatio)})")
+                Pair(0.10f, "Subpixel matrix detected @${fftSize}pt (ratio=${"%.1f".format(macroPeakRatio)})")
             moirePeaks > 25 ->
-                Pair(0.15f, "Padrão Moiré @${fftSize}pt ($moirePeaks picos)")
+                Pair(0.15f, "Moiré pattern @${fftSize}pt ($moirePeaks picos)")
             moirePeaks > 12 ->
                 Pair(0.50f, null)
             else ->
@@ -412,7 +412,7 @@ class AnalyzerGuidelineCardServiceImpl(
     }
 
     // =========================================================================
-    // TÉCNICA 3 — Qualidade da Imagem
+    // TECHNIQUE 3 — Image Quality
     // =========================================================================
 
     private fun checkImageQuality(bitmap: Bitmap): Pair<Float, String?> {
@@ -429,9 +429,9 @@ class AnalyzerGuidelineCardServiceImpl(
         log.d("AntiSpoofing") { "[QUALITY] blur=${"%.2f".format(blur)} bright=${"%.1f".format(bright)}" }
 
         return when {
-            bright < 25.0   -> Pair(0.30f, "Imagem muito escura (lum=${"%.1f".format(bright)})")
-            bright > 230.0  -> Pair(0.30f, "Sobre-exposta (lum=${"%.1f".format(bright)})")
-            blur < 3.0      -> Pair(0.25f, "Imagem desfocada (var=${"%.2f".format(blur)}) — aguardar autofocus")
+            bright < 25.0   -> Pair(0.30f, "Very dark image (lum=${"%.1f".format(bright)})")
+            bright > 230.0  -> Pair(0.30f, "Overexposed(lum=${"%.1f".format(bright)})")
+            blur < 3.0      -> Pair(0.25f, "Blurred image (var=${"%.2f".format(blur)}) — wait for autofocus")
             blur < 12.0     -> Pair(0.60f, null)
             blur > 100.0    -> Pair(1.00f, null)
             else            -> Pair(0.80f, null)
@@ -439,7 +439,7 @@ class AnalyzerGuidelineCardServiceImpl(
     }
 
     // =========================================================================
-    // TÉCNICA 4 — Giroscópio + OVI
+    // TECHNIQUE 4 — Gyroscope + OVI
     // =========================================================================
 
     private fun checkGyroscopeConsistency(bitmap: Bitmap, rotMatrix: FloatArray): Pair<Float, String?> {
@@ -456,7 +456,7 @@ class AnalyzerGuidelineCardServiceImpl(
 
         return when {
             delta > 20f && colorDelta < 5f  ->
-                Pair(0.25f, "Sem variação OVI com rotação ${"%.1f".format(delta)}° — suspeito")
+                Pair(0.25f, "No OVI variation with rotation ${"%.1f".format(delta)}° — suspect")
             delta > 15f && colorDelta > 20f ->
                 Pair(0.95f, null)
             delta in 10f..25f && colorDelta in 5f..20f ->
@@ -485,7 +485,7 @@ class AnalyzerGuidelineCardServiceImpl(
     }
 
     // =========================================================================
-    // TÉCNICA 5 — Acelerómetro
+    // TECHNIQUE 5 — Accelerometer
     // =========================================================================
 
     private fun checkAccelerometerStability(accel: FloatArray): Pair<Float, String?> {
@@ -511,54 +511,41 @@ class AnalyzerGuidelineCardServiceImpl(
 
     /**
      *
-     * TÉCNICA 6 — Homografia Planar
+     * TECHNIQUE 6 — Planar Homography
      *
-     * Contexto técnico:
-     * Esta técnica foi concebida para distinguir comportamento de movimento rígido
-     * (ex.: cartão/plástico) versus deformação não rígida (ex.: papel dobrado),
-     * através da consistência geométrica entre frames sucessivos.
+     * Technical Context:
+     * This technique was designed to distinguish rigid motion behavior
+     * (e.g., cardboard/plastic) versus non-rigid deformation (e.g., folded paper),
+     * through geometric consistency between successive frames.
      *
-     * Problema identificado na versão v5:
-     * A implementação anterior calculava "previousCorners" diretamente a partir de
-     * bitmap.width e bitmap.height. Como essas dimensões são invariantes entre
-     * frames, o deslocamento estimado (dx, dy) permanecia sempre igual a zero.
-     * Consequentemente, o erro de reprojeção ("reprojError") tornava-se trivialmente
-     * nulo, invalidando completamente a métrica de decisão.
+     * Problem identified in version v5:
+     * The previous implementation calculated "previousCorners" directly from
+     * bitmap.width and bitmap.height. Since these dimensions are invariant between
+     * frames, the estimated displacement (dx, dy) always remained equal to zero.
+     * Consequently, the reprojection error ("reprojError") became trivially
+     * null, completely invalidating the decision metric.
      *
-     * Correção introduzida na versão v5b:
-     * A versão v5b substitui o modelo incorreto por rastreio baseado em centróides
-     * de gradiente distribuídos espacialmente. A imagem é segmentada em quatro
-     * quadrantes (superior esquerdo, superior direito, inferior esquerdo, inferior
-     * direito). Em cada quadrante, calcula-se o centróide ponderado pelo módulo do
-     * gradiente, considerando apenas píxeis cujo gradiente exceda um limiar mínimo
-     * (gradiente > 20).
-     *
-     * Justificativa técnica:
-     * O módulo do gradiente atua como proxy de bordas e regiões com textura
-     * significativa, fornecendo pontos estáveis e relevantes para rastreio. Ao
-     * calcular centróides por quadrante, garante-se distribuição espacial mínima
-     * dos pontos de referência, evitando colapso em um único agrupamento local.
-     *
-     * Critério de decisão:
-     * Em um objeto rígido (cartão), os quatro centróides devem deslocar-se de forma
-     * aproximadamente consistente, obedecendo a uma transformação global próxima
-     * de translação/homografia, resultando em erro médio de reprojeção tipicamente
-     * inferior a 2 pixels.
-     *
-     * Em um objeto deformável (papel dobrado), a deformação local rompe a coerência
-     * do deslocamento global: ao menos um centróide apresenta movimento inconsistente
-     * em relação aos demais, elevando o erro de reprojeção para valores acima de
+     * Correction introduced in version v5b:
+     * Version v5b replaces the incorrect model with centroid-based tracking
+     * of spatially distributed gradients. The image is segmented into four quadrants (upper left, upper right, lower left, lower right). In each quadrant, the centroid is calculated weighted by the gradient modulus, considering only pixels whose gradient exceeds a minimum threshold (gradient > 20).
+     * Technical justification:
+     * The gradient modulus acts as a proxy for edges and regions with significant texture, providing stable and relevant points for tracking. By calculating centroids per quadrant, a minimum spatial distribution of reference points is guaranteed, avoiding collapse into a single local cluster.
+     * Decision criterion:
+     * In a rigid object (card), the four centroids must move approximately consistently, obeying a global transformation close to translation/homography, resulting in an average reprojection error typically less than 2 pixels.
+     * *
+     * In a deformable object (folded paper), local deformation breaks the coherence
+     * of the global displacement: at least one centroid exhibits inconsistent movement
+     * in relation to the others, raising the reprojection error to values above
      * 6–12 pixels.
      *
-     * Observação crítica:
-     * Embora o termo "homografia planar" seja utilizado como referência conceitual,
-     * a implementação descrita não estima explicitamente uma matriz de homografia 3x3.
-     * O método aplica, na prática, uma heurística de consistência de deslocamento
-     * baseada em centróides de gradiente, o que é válido como critério empírico,
-     * mas não corresponde a uma estimação formal de homografia via DLT/RANSAC.
+     * Critical observation:
+     * Although the term "planar homography" is used as a conceptual reference,
+     * the described implementation does not explicitly estimate a 3x3 homography matrix.
+     * In practice, the method applies a displacement consistency heuristic
+     * based on gradient centroids, which is valid as an empirical criterion,
+     * but does not correspond to a formal homography estimate via DLT/RANSAC.
      * =========================================================================
      */
-
     private fun checkHomographyPlanarity(bitmap: Bitmap): Pair<Float, String?> {
         val w = bitmap.width; val h = bitmap.height
         val gray = bitmapToGray(bitmap)
@@ -590,11 +577,11 @@ class AnalyzerGuidelineCardServiceImpl(
 
         if (prev == null) return Pair(0.50f, null)
 
-        // Translação global média
+        // average global translation
         val dx = (0..3).sumOf { i -> (currentCentroids[i*2]     - prev[i*2]    ).toDouble() }.toFloat() / 4f
         val dy = (0..3).sumOf { i -> (currentCentroids[i*2 + 1] - prev[i*2 + 1]).toDouble() }.toFloat() / 4f
 
-        // Erro de reprojeção por quadrante
+        //Quadrant reprojection error
         var maxReprojError = 0f
         for (i in 0..3) {
             val errX = currentCentroids[i*2]     - (prev[i*2]     + dx)
@@ -608,14 +595,14 @@ class AnalyzerGuidelineCardServiceImpl(
 
         return when {
             maxReprojError > 55f -> Pair(0.20f, "Deformação extrema geométrica (${"%.1f".format(maxReprojError)}px)")
-            maxReprojError > 35f -> Pair(0.50f, null) // Neutro, o seu cartão real (37px) cai aqui agora.
-            maxReprojError < 15f -> Pair(0.85f, null) // Cartão muito estável
+            maxReprojError > 35f -> Pair(0.50f, null) // Neutral, your actual card (37px) lands here now..
+            maxReprojError < 15f -> Pair(0.85f, null) // Very stable card
             else                 -> Pair(0.70f, null)
         }
     }
 
     // =========================================================================
-    // TÉCNICA 7 — Nitidez de Arestas
+    //TECHNIQUE 7 — Edge Sharpening
     // =========================================================================
 
     private fun checkEdgeSharpness(bitmap: Bitmap): Pair<Float, String?> {
@@ -663,16 +650,16 @@ class AnalyzerGuidelineCardServiceImpl(
             edgeRatio > 1.8f && borderSharp > 15.0 ->
                 Pair(0.90f, null)
             borderSharp < 4.0 ->
-                Pair(0.30f, "Arestas muito suaves — possível fotocópia (${"%.1f".format(borderSharp)})")
+                Pair(0.30f, "Very smooth edges — photocopy possible. (${"%.1f".format(borderSharp)})")
             edgeRatio < 0.7f  ->
-                Pair(0.45f, "Gradiente uniforme — suspeito de impressão (ratio=${"%.2f".format(edgeRatio)})")
+                Pair(0.45f, "Uniform gradient — suspected printing error (ratio=${"%.2f".format(edgeRatio)})")
             else ->
                 Pair(0.70f, null)
         }
     }
 
     // =========================================================================
-    // TÉCNICA 8 — Consistência de Cor
+    // TECHNIQUE 8 — Color Consistency
     // =========================================================================
 
     private fun checkColorConsistency(bitmap: Bitmap): Pair<Float, String?> {
@@ -707,9 +694,9 @@ class AnalyzerGuidelineCardServiceImpl(
             avgCorr > 0.80 && avgCV in 0.10..0.85 ->
                 Pair(0.80f, null)
             avgCV > 0.88 && avgCorr < 0.55 ->
-                Pair(0.30f, "Variação de cor muito elevada + canais descorrelacionados — inkjet (CV=${"%.2f".format(avgCV)}, corr=${"%.2f".format(avgCorr)})")
+                Pair(0.30f, "Very high color variation + uncorrelated channels — inkjet (CV=${"%.2f".format(avgCV)}, corr=${"%.2f".format(avgCorr)})")
             avgCorr < 0.35 ->
-                Pair(0.40f, "Canais descorrelacionados — artefacto CMYK (corr=${"%.2f".format(avgCorr)})")
+                Pair(0.40f, "Uncorrelated annals — artifact CMYK (corr=${"%.2f".format(avgCorr)})")
             else ->
                 Pair(0.65f, null)
         }
@@ -731,11 +718,11 @@ class AnalyzerGuidelineCardServiceImpl(
         log.d("AntiSpoofing") { "[TEMPORAL] avgHashDelta=${"%.2f".format(avgDelta)} frames=${frameHashHistory.size}" }
 
         return when {
-            // Se avgDelta for incrivelmente baixo (< 0.8), não há ruído ótico do plástico.
-            // É uma imagem fosca ou papel na mesa. Score 0.20 garante o disparo do VETO.
-            avgDelta < 0.8        -> Pair(0.20f, "Imagem morta/estática — fotocópia ou foto pousada (${"%.1f".format(avgDelta)})")
-            avgDelta > 35.0       -> Pair(0.40f, "Movimento excessivo entre frames")
-            avgDelta in 1.5..25.0 -> Pair(0.95f, null) // Cartão plástico real sob a mão humana
+            // If avgDelta is incredibly low (< 0.8), there is no optical noise from the plastic.
+            // It's a matte image or paper on the table. A score of 0.20 guarantees the triggering of the VETO.
+            avgDelta < 0.8        -> Pair(0.20f, "Still/static image — photocopy or still photograph(${"%.1f".format(avgDelta)})")
+            avgDelta > 35.0       -> Pair(0.40f, "Excessive movement between frames")
+            avgDelta in 1.5..25.0 -> Pair(0.95f, null) // Real plastic card under human hand
             else                  -> Pair(0.65f, null)
         }
     }
@@ -751,28 +738,27 @@ class AnalyzerGuidelineCardServiceImpl(
     private fun hammingDistance(a: Long, b: Long) = java.lang.Long.bitCount(a xor b)
 
     // =========================================================================
-    // TÉCNICA 10 — Artefactos de Impressão
+    // TECHNIQUE 10 — Printing Artifacts
     //
     // FIX v5b — HALFTONE:
-    // Nos logs: ringPeaks=1248–1797 com e > 600 num cartão REAL.
-    // O guilhoché do CC PT é micro-impressão de segurança com padrões de
-    // alta frequência — gera centenas de picos de energia moderada no anel.
+    // In the logs: ringPeaks=1248–1797 with and > 600 on a REAL card.
+    // The CC PT guilloche is security micro-printing with patterns of
+    // high frequency — generates hundreds of moderate energy peaks on the ring.
     //
-    // Diferença inkjet vs guilhoché:
-    //   Inkjet halftone: poucos picos muito agudos (10–50 pontos com e > 2000)
-    //   Guilhoché:       energia difusa (1000+ pontos com e 600–1500, mas <10 com e > 2000)
+    // Difference between inkjet and guilloche:
+    // Inkjet halftone: few very sharp peaks (10–50 points with e > 2000)
+    // Guilloche: diffuse energy (1000+ points with e 600–1500, but <10 with e > 2000)
     //
     // FIX: e > 600 → e > 2000 | ringPeaks > 10 → ringPeaks > 150
     // =========================================================================
-
     private fun checkPrintArtifacts(bitmap: Bitmap): Pair<Float, String?> {
         val halfScore  = detectHalftonePeaks(bitmap)
         val bandScore  = detectBanding(bitmap)
         val quantScore = detectQuantizationNoise(bitmap)
 
-        // CORREÇÃO CRÍTICA (O ERRO MATEMÁTICO DA FOTOCÓPIA):
-        // Se qualquer um dos 3 motores detetar marca de impressão, o score global
-        // TEM de ser esse valor crítico. A média mascarava a fraude.
+        // CORRECTION: Brightness Safety Check
+        // If the image is too dark, the camera sensor inserts ISO noise
+        // which generates artificial high spatial frequencies, causing false vetoes.
         val worstScore = minOf(halfScore.first, bandScore.first, quantScore.first)
 
         val reasons = listOfNotNull(halfScore.second, bandScore.second, quantScore.second)
@@ -788,13 +774,13 @@ class AnalyzerGuidelineCardServiceImpl(
         val sz = 256
         val gray = bitmapToGrayResized(bitmap, sz, sz)
 
-        // CORREÇÃO: Verificação de Segurança de Luminosidade
-        // Se a imagem estiver muito escura, o sensor da câmara insere ruído ISO
-        // que gera altas frequências espaciais artificiais, causando falsos vetos.
+        // Brightness Safety Check
+        // If the image is too dark, the camera sensor inserts ISO noise
+        // which generates artificial high spatial frequencies, causing false vetoes.
         val globalMean = gray.average()
         if (globalMean < 65.0) {
-            log.d("AntiSpoofing") { "[HALFTONE] Imagem escura (lum=${"%.1f".format(globalMean)}). Análise FFT suspensa para evitar falsos positivos de ruído ISO." }
-            return Pair(0.85f, null) // Passa no teste de impressão por falta de condições de análise
+            log.d("AntiSpoofing") { "[HALFTONE] Dark image (lum=${"%.1f".format(globalMean)}). FFT analysis suspended to avoid false positives from ISO noise." }
+            return Pair(0.85f, null) // Passes the print test due to lack of analysis conditions
         }
 
         val real = Array(sz) { r -> DoubleArray(sz) { c -> gray[r * sz + c].toDouble() } }
@@ -859,9 +845,9 @@ class AnalyzerGuidelineCardServiceImpl(
 
         return when {
             sharpPeaks in 2..6 && maxBinEnergy > 30000.0 ->
-                Pair(0.15f, "Matriz de impressão a laser detetada ($sharpPeaks picos angulares)")
+                Pair(0.15f, "Laser printing matrix detected($sharpPeaks angular peaks)")
             sharpPeaks > 6 ->
-                Pair(0.40f, "Ruído estruturado excessivo em alta frequência")
+                Pair(0.40f, "Excessive structured noise at high frequencies")
             else ->
                 Pair(0.95f, null)
         }
@@ -890,7 +876,7 @@ class AnalyzerGuidelineCardServiceImpl(
         }
         val noiseR = abrupt.toFloat() / total
         return when {
-            noiseR > 0.12f -> Pair(0.35f, "Quantization noise — impressão (${"%.3f".format(noiseR)})")
+            noiseR > 0.12f -> Pair(0.35f, "Quantization noise — impression (${"%.3f".format(noiseR)})")
             noiseR < 0.03f -> Pair(0.85f, null)
             else           -> Pair(0.65f, null)
         }
