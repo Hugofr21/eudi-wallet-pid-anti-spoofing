@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 European Commission
+ * Copyright (c) 2026 European Commission
  *
  * Licensed under the EUPL, Version 1.2 or - as soon they will be approved by the European
  * Commission - subsequent versions of the EUPL (the "Licence"); You may not use this work
@@ -62,7 +62,9 @@ data class State(
     val userBiometricsAreEnabled: Boolean = false,
     val isBackable: Boolean = false,
     val notifyOnAuthenticationFailure: Boolean = true,
-    val quickPinSize: Int = 8
+    val quickPinSize: Int = 8,
+    val isPinInputEnabled: Boolean = true,
+    val isBiometricButtonEnabled: Boolean = true
 ) : ViewState
 
 sealed class Effect : ViewSideEffect {
@@ -221,6 +223,7 @@ class BiometricViewModel(
                                 copy(
                                     quickPinError = "${it.errorMessage} (Loading $formattedTime)",
                                     quickPin = "",
+                                    isPinInputEnabled = false
                                 )
                             }
                         }
@@ -239,7 +242,36 @@ class BiometricViewModel(
                     authenticationSuccess()
                 }
 
-                else -> {}
+                is BiometricsAuthenticate.Failed -> {
+                    setState {
+                        copy(
+                            error = ContentErrorConfig(
+                                errorSubTitle = it.errorMessage,
+                                onCancel = { setEvent(Event.OnErrorDismiss) }
+                            )
+                        )
+                    }
+
+                }
+
+                is BiometricsAuthenticate.Cancelled -> {
+                    setState {
+                        copy(error = null)
+                    }
+                }
+
+                is BiometricsAuthenticate.LockedOut -> {
+                    setState {
+                        copy(
+                            error = ContentErrorConfig(
+                                errorSubTitle = it.errorMessage,
+                                onCancel = { setEvent(Event.OnErrorDismiss) }
+                            ),
+                            isBiometricButtonEnabled = false
+                        )
+                    }
+                }
+
             }
         }
     }

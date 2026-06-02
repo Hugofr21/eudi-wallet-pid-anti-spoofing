@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 European Commission
+ * Copyright (c) 2026 European Commission
  *
  * Licensed under the EUPL, Version 1.2 or - as soon they will be approved by the European
  * Commission - subsequent versions of the EUPL (the "Licence"); You may not use this work
@@ -241,18 +241,25 @@ class BiometricAuthenticationControllerImpl(
         notifyFailure: Boolean,
         listener: (BiometricsAuthenticate) -> Unit
     ) {
-        when {
-            result.errorCode == BiometricPrompt.ERROR_USER_CANCELED ||
-                    result.errorCode == BiometricPrompt.ERROR_NEGATIVE_BUTTON -> {
+        when (result.errorCode) {
+            BiometricPrompt.ERROR_USER_CANCELED,
+            BiometricPrompt.ERROR_NEGATIVE_BUTTON -> {
                 listener(BiometricsAuthenticate.Cancelled)
             }
 
-            isRecoverableError(result.errorCode) && retryCount < MAX_RETRIES -> {
-                authenticate(context, notifyFailure, listener, retryCount + 1)
+            BiometricPrompt.ERROR_LOCKOUT -> {
+                listener(BiometricsAuthenticate.LockedOut(result.errorString.toString(), isPermanent = false))
+            }
+            BiometricPrompt.ERROR_LOCKOUT_PERMANENT -> {
+                listener(BiometricsAuthenticate.LockedOut(result.errorString.toString(), isPermanent = true))
             }
 
             else -> {
-                listener(BiometricsAuthenticate.Failed(result.errorString.toString()))
+                if (isRecoverableError(result.errorCode) && retryCount < MAX_RETRIES) {
+                    authenticate(context, notifyFailure, listener, retryCount + 1)
+                } else {
+                    listener(BiometricsAuthenticate.Failed(result.errorString.toString()))
+                }
             }
         }
     }
@@ -321,6 +328,7 @@ sealed class BiometricsAuthenticate {
     data object Success : BiometricsAuthenticate()
     data class Failed(val errorMessage: String) : BiometricsAuthenticate()
     data object Cancelled : BiometricsAuthenticate()
+    data class LockedOut(val errorMessage: String, val isPermanent: Boolean) : BiometricsAuthenticate()
 }
 
 sealed class BiometricsAvailability {

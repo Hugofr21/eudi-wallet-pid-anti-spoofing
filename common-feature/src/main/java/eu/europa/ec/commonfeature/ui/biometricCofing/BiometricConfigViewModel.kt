@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 European Commission
+ * Copyright (c) 2026 European Commission
  *
  * Licensed under the EUPL, Version 1.2 or - as soon they will be approved by the European
  * Commission - subsequent versions of the EUPL (the "Licence"); You may not use this work
@@ -44,7 +44,8 @@ data class State(
     val isBiometricsAvailable: Boolean = false,
     val hasFingerprint : Boolean = false,
     val appPassword : Boolean = false,
-    val biometricsError: String? = null
+    val biometricsError: String? = null,
+    val isNextButtonEnabled: Boolean = true
 ) : ViewState {
     val action: ScreenNavigateAction = ScreenNavigateAction.BACKABLE
 }
@@ -75,14 +76,10 @@ class BiometricSetupViewModel(
 
             is Event.NextButtonPressed -> {
                 clearError()
-//                println("NextButtonPressed: pressed")
                 if (viewState.value.isBiometricsAvailable) {
-//                    println("NextButtonPressed: isBiometricsAvailable")
                     if (viewState.value.hasFingerprint) {
-//                        println("NextButtonPressed: hasFingerprint")
                         authenticate(event.context)
                     } else {
-//                        println("NextButtonPressed: launchBiometricSystemScreen")
                         biometricInteractor.launchBiometricSystemScreen()
                     }
                 }
@@ -102,8 +99,16 @@ class BiometricSetupViewModel(
         ) {
             when (it) {
                 is BiometricsAuthenticate.Success -> authenticationSuccess()
-                BiometricsAuthenticate.Cancelled -> clearError()
+                is BiometricsAuthenticate.Cancelled -> clearError()
                 is BiometricsAuthenticate.Failed -> showError("Failed " + it.errorMessage)
+                is BiometricsAuthenticate.LockedOut -> {
+                    setState {
+                        copy(
+                            biometricsError = it.errorMessage,
+                            isNextButtonEnabled = false
+                        )
+                    }
+                }
             }
         }
     }
