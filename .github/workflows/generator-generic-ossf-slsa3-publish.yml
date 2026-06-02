@@ -1,0 +1,55 @@
+name: SLSA Android/Kotlin provenance
+
+on:
+  workflow_dispatch:
+  release:
+    types: [created]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    outputs:
+      digests: ${{ steps.hash.outputs.digests }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: gradle
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      - name: Build release artifact
+        run: ./gradlew clean assembleRelease --no-daemon
+
+      - name: Collect artifacts
+        id: hash
+        run: |
+          set -euo pipefail
+
+          files=$(find app/build/outputs -type f -name "*.apk" -o -name "*.aab" -o -name "*.jar")
+
+          echo "Artifacts found:"
+          echo "$files"
+
+          digest=$(sha256sum $files | base64 -w0)
+
+          echo "digests=$digest" >> "$GITHUB_OUTPUT"
+
+  provenance:
+    needs: build
+    permissions:
+      actions: read
+      id-token: write
+      contents: write
+
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v1.4.0
+    with:
+      base64-subjects: ${{ needs.build.outputs.digests }}
+      upload-assets: true
