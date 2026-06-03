@@ -1,28 +1,21 @@
 name: SonarCloud Analysis
-
 on:
   push:
     branches-ignore:
       - 'dependabot/**'
-
   pull_request:
-
   workflow_dispatch:
-
 permissions:
   contents: read
   pull-requests: read
-
 jobs:
   analysis:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
       - name: SonarCloud Scan
         uses: SonarSource/sonarcloud-github-action@v2
         env:
