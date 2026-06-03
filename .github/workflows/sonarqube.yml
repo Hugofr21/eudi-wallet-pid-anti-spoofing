@@ -1,4 +1,4 @@
-name: SonarQube Analysis
+name: SonarCloud Analysis
 
 on:
   push:
@@ -23,11 +23,11 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: SonarQube Scan
-        uses: sonarsource/sonarqube-scan-action@v6
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarcloud-github-action@v2
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
         with:
           args: >
-            -Dsonar.projectKey=eudi-wallet-pid
+            -Dsonar.projectKey=Hugofr21_eudi-wallet-pid
+            -Dsonar.organization=hugofr21
