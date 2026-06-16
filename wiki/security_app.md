@@ -3,6 +3,69 @@
 ## 1. System Context and Trust Boundaries
 This document outlines the formal threat model for the Mobile Identity Wallet, evaluated under a strict **Zero-Trust architecture**. The application operates in potentially hostile mobile environments, requiring robust hardware-backed cryptographic guarantees.
 
+````mermaid
+graph TD
+
+    %% Class Definitions
+    classDef goal fill:#d32f2f,stroke:#b71c1c,stroke-width:2px,color:#fff,font-weight:bold;
+    classDef vector fill:#e65100,stroke:#e65100,stroke-width:2px,color:#fff;
+    classDef attack fill:#ffb74d,stroke:#ef6c00,stroke-width:1px,color:#000;
+    classDef mitigation fill:#2e7d32,stroke:#1b5e20,stroke-width:2px,color:#fff,stroke-dasharray: 5 5;
+    classDef note fill:#1976d2,stroke:#0d47a1,stroke-width:1px,color:#fff;
+
+    %% Root Node / Goal
+    G0((Identity Theft & <br> Financial Fraud)):::goal
+
+    %% Level 1 Attack Vectors
+    A1[Unauthorized Credential <br> Presentation]:::vector
+    A2[mDoc/mDL Exfiltration <br> & Decryption]:::vector
+    A3[Fraudulent Issuance <br> via Issuer]:::vector
+
+    G0 --- A1
+    G0 --- A2
+    G0 --- A3
+
+    %% Branch 1: Unauthorized Presentation
+    A1 --- A1_1[ECDSA Signature Forgery]:::attack
+    A1 --- A1_2[BLE/NFC Presentation Replay]:::attack
+    
+    A1_1 --- A1_1_1[Biometric Spoofing <br> FIDO2 / WebAuthn]:::attack
+    A1_1 --- A1_1_2[Physical Compromise of <br> TEE/Secure Enclave]:::attack
+
+    %% Branch 2: Exfiltration
+    A2 --- A2_1[SQLCipher Master Key <br> Extraction]:::attack
+    A2 --- A2_2[Malicious Supply Chain <br> Exploitation]:::attack
+    
+    A2_1 --- A2_1_1[Runtime RAM <br> Memory Dump]:::attack
+    A2_1_1 --- A2_1_1_1[OS Compromise <br> Root / Jailbreak]:::attack
+
+    %% Branch 3: Fraudulent Issuance
+    A3 --- A3_1[MitM Attack on <br> OIDC4VCI Flow]:::attack
+
+    %% Mitigations
+    M1([Liveness Detection <br> 3D Biometric PAD]):::mitigation
+    M2([Hardware Certification <br> CC EAL 4+]):::mitigation
+    M3([Channel Encryption <br> ISO 18013-5 & Nonces]):::mitigation
+    M4([Keystore Binding & <br> StrongBox Enforcement]):::mitigation
+    M5([RASP Detection & <br> Play Integrity API]):::mitigation
+    M6([DevSecOps Pipeline <br> SAST & SBOM Audit]):::mitigation
+    M7([TLS Pinning & <br> DPoP Validation]):::mitigation
+
+    %% Architectural Note
+    N1([EC Diffie-Hellman for <br> Session Key Agreement]):::note
+
+    %% Mitigation Edges
+    A1_1_1 -. Mitigated by .-> M1
+    A1_1_2 -. Mitigated by .-> M2
+    A1_2 -. Mitigated by .-> M3
+    A2_1 -. Mitigated by .-> M4
+    A2_1_1_1 -. Mitigated by .-> M5
+    A2_2 -. Mitigated by .-> M6
+    A3_1 -. Mitigated by .-> M7
+    
+    %% Edge from Note to Mitigation
+    N1 -. Cryptographic Basis .-> M3
+````
 ### Core Architectural Facts
 * **Cryptography:** All key generation occurs within a Hardware-backed Trusted Execution Environment (TEE/StrongBox). Signatures rely on ECDSA (P-256/Brainpool).
 * **Storage:** Verifiable Credentials (mDoc/mDL) are encrypted at rest using SQLCipher (AES-256-GCM).
