@@ -1,0 +1,7 @@
+version: v1.0.0-ipr
+status: awaiting-ip-review
+ratified: false
+changelog:
+  - id: 102
+    description: Updated glossary definition of "compliance"
+    type: editorial
