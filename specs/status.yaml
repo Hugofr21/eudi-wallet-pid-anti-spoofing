@@ -1,7 +1,26 @@
-version: v1.0.0-ipr
+version: "1.0.0"
+
 status: awaiting-ip-review
-ratified: false
+
+lifecycle:
+  phase: review
+  ratified: false
+
+approval:
+  approvers: []
+  approval_date: null
+
+ipr:
+  review_status: pending
+  last_review_date: null
+
+metadata:
+  created_date: "2026-05-10"
+  last_updated: "2026-06-16"
+
 changelog:
   - id: 102
-    description: Updated glossary definition of "compliance"
+    date: "2026-06-16"
     type: editorial
+    description: Updated glossary definition of "compliance"
+    author: "Hugo Rodrigues"
