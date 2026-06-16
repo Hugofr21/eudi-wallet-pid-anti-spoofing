@@ -1,3 +1,10 @@
+---
+title: Liveness
+version: v1.0.0-draft
+status: draft
+editor: @hugofr21
+---
+
 # Engineering Architecture for Phygital Identity: Convergence Between ICAO 9303 and ISO 18013-5
 
 The architecture proposed here for *phygital* (physical-digital) identity systems focuses on the convergence between international document issuance standards (ICAO 9303) and modern image processing and Optical Character Recognition (OCR) technologies. This approach establishes the foundation for robust identity verification and digital onboarding systems in mobile environments.

@@ -1,4 +1,9 @@
-
+---
+title: Anti-Spoofing
+version: v1.0.0-draft
+status: draft
+editor: @hugofr21
+---
 # Anti-Spoofing
 
 The `AnalyzerGuilinecCardService` acts as the primary defense line against presentation attacks (*spoofing*) during identity document capture. Rather than relying exclusively on artificial intelligence models, the system employs a deterministic approach based on computational geometry, signal processing (Frequency Analysis), and sensor fusion (accelerometer and gyroscope) to detect spoofing patterns. This architecture was designed to be resource-efficient, ensuring fast and accurate responses even on mobile devices with processing constraints.

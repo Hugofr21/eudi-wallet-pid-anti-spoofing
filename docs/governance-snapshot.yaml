@@ -1,0 +1,42 @@
+version: "1.0.0"
+
+roles:
+  chair: "Hugo Rodrigues"
+  editors:
+    - "Hugo Rodrigues"
+  contributors:
+    - "hugofr21"
+
+permissions:
+  protected_branches:
+    - "main"
+    - "release/*"
+  codeowners_file: ".github/CODEOWNERS"
+
+ipr:
+  disclosure_status: "complete"
+  review_window_closed: "2026-05-10"
+
+lifecycle:
+  current_version: "v1.0.0"
+  active_branches:
+    - "dev"
+    - "release/v1.1.0"
+  archival_ready: false
+
+approvals:
+  normative_prs:
+    signoff:
+      - role: editor
+      - role: chair
+      - role: contribution
+      - role: observer
+
+  release_tagging:
+    requirements:
+      - working_group_vote
+      - changelog_reference
+
+  license_changes:
+    requirements:
+      - steering_committee_approval
