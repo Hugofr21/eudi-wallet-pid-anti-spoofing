@@ -15,7 +15,8 @@
   - [Security](./wiki/security_app.md)
   - [Security Flow Overview](#security-flow-overview)
   - [Anti-spoofing](./docs/anti-spoofing.md)
-  - [License](./docs/liveness.md)
+  - [Liveness](./docs/liveness.md)
+  - [License](#license)
     - [License details](#license-details)
 
 ## Overview
