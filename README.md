@@ -9,7 +9,7 @@
 
 - [EUDI Android Wallet Reference Application](#eudi-android-wallet-reference-application)
   - [Table of Contents](#table-of-contents)
-  - [List of Abbreviations](./docs/listofAbbreviations.md)
+  - [List of Abbreviations](glossary/listofAbbreviations.md)
   - [Overview](#overview)
   - [Protocols](#protocols)
   - [Security](wiki/THREAT_MODEL.md)
