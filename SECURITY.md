@@ -1,42 +1,54 @@
 # EU Digital Identity Wallet Vulnerability Disclosure Policy (VDP)
 
-At the European Commission, we treat the security of our Communication and Information Systems as a top priority, in line with Commission Decision EC 2017/46. However, vulnerabilities can never be completely eliminated, despite all efforts. If exploited, such vulnerabilities can harm the confidentiality, integrity or availability of the Commission's systems and of the information processed therein. To identify and remediate vulnerabilities as soon as possible, we value the input of external entities acting in good faith, and we encourage responsible vulnerability research and disclosure. This document sets out our definition of good faith in the context of finding and reporting vulnerabilities, as well as what you can expect from us in return.
+The European Commission considers the security of its Communication and Information Systems a top priority, in line with Commission Decision EC 2017/46. However, vulnerabilities can never be fully eliminated despite all preventive measures. If exploited, such vulnerabilities may affect the confidentiality, integrity, or availability of Commission systems and the information they process.
+
+To identify and remediate vulnerabilities as early as possible, we value input from external security researchers acting in good faith and encourage responsible vulnerability disclosure. This document defines what is considered good faith in vulnerability research and reporting, as well as what reporters can expect in return.
+
+---
 
 ## Scope
 
-- Architecture and Reference Framework
-- Source code in [eu-digital-identity-wallet](https://github.com/eu-digital-identity-wallet) public repositories
+This policy applies to:
 
-## If you have identified a vulnerability, please do the following
+- The Architecture and Reference Framework (ARF)
+- Source code hosted in the [eu-digital-identity-wallet](https://github.com/eu-digital-identity-wallet) public repositories
 
-- E-mail your findings to <EC-VULNERABILITY-DISCLOSURE@ec.europa.eu>, specifying whether or not you agree to your name or pseudonym being made publicly available as the discoverer of the problem.
-- Encrypt your findings using our [PGP key](https://ec.europa.eu/assets/digit/pgpkey/ec-vulnerability-disclosure-pgp.txt) to prevent this critical information from falling into the wrong hands.
-- Provide us with sufficient information to reproduce the problem so that we can resolve it as quickly as possible. Usually, the IP address or the URL of the affected system and a description of the vulnerability will be sufficient, but complex vulnerabilities may require further explanation in terms of technical information or potential proof-of-concept code.
-- Provide your report in English, preferably, or in any other official language of the European Union.
-- Inform us if you agree to make your name/pseudonym publicly available as the discoverer of the vulnerability.
+---
 
-## Please do not do the following
+## Reporting a Vulnerability
 
-- Do not take advantage of the vulnerability or problem you have discovered, for example, by downloading more data than necessary to demonstrate the vulnerability, deleting, or modifying other people’s data.
-- Do not reveal any data downloaded during the discovery to any other parties.
-- Do not reveal the problem to others until it has been resolved.
-- Do not perform the following actions:
-  - Placing malware (virus, worm, Trojan horse, etc.) within the system.
-  - Reading, copying, modifying or deleting data from the system.
-  - Making changes to the system.
-  - Repeatedly accessing the system or sharing access with others.
-  - Using any access obtained to attempt to access other systems.
-  - Changing access rights for any other users.
-  - Using automated scanning tools.
-  - Using the so-called "brute force" of access to the system.
-  - Using denial-of-service or social engineering (phishing, vishing, spam, etc.).
-- Do not use attacks on physical security.
+If you have identified a vulnerability, please follow these steps:
 
-## What we promise
+- Send your findings by email to: <EC-VULNERABILITY-DISCLOSURE@ec.europa.eu>, indicating whether you consent to your name or pseudonym being publicly acknowledged as the discoverer of the issue.
+- Encrypt your report using the official PGP key to ensure secure transmission of sensitive information: https://ec.europa.eu/assets/digit/pgpkey/ec-vulnerability-disclosure-pgp.txt
+- Provide sufficient information to reproduce the issue. In most cases, this includes the affected URL or IP address and a clear description of the vulnerability. Complex issues may require additional technical details or proof-of-concept code.
+- Submit your report in English, preferably, or in any official language of the European Union.
+- Clearly state whether you consent to public attribution for the discovery.
 
-- We will respond to your report within three business days with our evaluation of the report.
+---
 
-- We will handle your report with strict confidentiality.
-- Where possible, we will inform you when the vulnerability has been remedied.
-- We will process the personal data that you provide (such as your e-mail address and name) in accordance with the applicable data protection legislation and will not pass on your personal details to third parties without your permission.
-- In the public information concerning the problem reported, we will publish your name as the discoverer of the problem if you have agreed to this in your initial e-mail
+## Out of Scope Behavior (Do Not Perform)
+
+The following activities are strictly prohibited during security testing:
+
+- Exploiting vulnerabilities beyond what is necessary to demonstrate their existence.
+- Downloading, modifying, or deleting data that does not belong to you.
+- Disclosing vulnerability details or affected data to third parties before remediation.
+- Introducing malware (e.g., viruses, worms, trojans).
+- Altering system configurations or user data.
+- Repeated or excessive access to systems.
+- Attempting to access other systems using obtained credentials or access.
+- Modifying access rights of other users.
+- Using automated scanning tools or brute-force techniques.
+- Conducting denial-of-service or social engineering attacks (phishing, vishing, spam, etc.).
+- Attempting to compromise physical security controls.
+
+---
+
+## Our Commitments
+
+- We will acknowledge receipt of your report within three business days and provide an initial assessment.
+- We will handle all reports with strict confidentiality.
+- Where possible, we will inform you once the vulnerability has been resolved.
+- Personal data provided (such as email address or name) will be processed in accordance with applicable data protection legislation and will not be shared with third parties without consent.
+- If you have agreed to attribution, your name or pseudonym will be included in public disclosures related to the vulnerability.
