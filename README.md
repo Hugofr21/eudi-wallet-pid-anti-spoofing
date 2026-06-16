@@ -13,7 +13,6 @@
   - [Overview](#overview)
   - [Protocols](#protocols)
   - [Security](./wiki/security_app.md)
-  - [Security Flow Overview](#security-flow-overview)
   - [Anti-spoofing](./docs/anti-spoofing.md)
   - [Liveness](./docs/liveness.md)
   - [License](#license)
