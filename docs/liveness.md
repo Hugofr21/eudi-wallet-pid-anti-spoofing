@@ -38,6 +38,75 @@ Immediately after the state machine confirms the success of liveness detection, 
 5- Challenge Orchestration - State Machine
 6- Capture and Cross-Verification of Authenticity
 
+
+````mermaid
+flowchart TD
+    %% Título
+    %% Face Recognition System — Enrollment and Verification Pipeline
+
+    %% Definição de estilo para as notas
+    classDef note fill:#F2F2F2,stroke:#444444,color:#111111,font-size:12px,stroke-dasharray: 5 5;
+    classDef process fill:#F9F9F9,stroke:#222222,color:#111111,rx:6px,ry:6px;
+
+    Start((Start)) --> SC[Start Capture]:::process
+
+    subgraph CAMERA [CAMERA]
+        SC --> AIF[Acquire Image Frame]:::process
+    end
+    
+    subgraph FRS [FACE RECOGNITION SYSTEM]
+        
+        subgraph PREPROCESSING [PREPROCESSING]
+            AIF --> FD[Face Detection]:::process
+            FD --> FA[Face Alignment / Crop / Resize]:::process
+            FA --> FE[Feature Extraction <br> Embedding]:::process
+        end
+        
+        %% Separação lógica dos fluxos (Split)
+        FE --> Mode{Operation Mode}
+        
+        subgraph ENROLLMENT [ENROLLMENT]
+            Mode -- Enrollment --> SBT[Store Biometric Template]:::process
+        end
+        
+        subgraph VERIFICATION [VERIFICATION]
+            Mode -- Verification --> CSS[Compute Similarity Score]:::process
+            CSS --> Cond{Score >= Threshold?}
+            Cond -- Yes --> AS[Authentication Success]:::process
+            Cond -- No --> AF[Authentication Failure]:::process
+        end
+    end
+    
+    SBT --> Stop((Stop))
+    AS --> Stop
+    AF --> Stop
+    
+    %% --- NOTAS (Anexadas aos processos) ---
+    
+    N_AIF>Note: Image capture from device sensor.<br>Raw input for biometric pipeline.]:::note
+    AIF -.-> N_AIF
+    
+    N_FD>Note: Detection of facial region using CNN-based detector<br>e.g., MTCNN, RetinaFace.]:::note
+    FD -.-> N_FD
+    
+    N_FA>Note: Normalization of facial geometry and scale.<br>Standard input size 112x112 or 160x160.]:::note
+    FA -.-> N_FA
+    
+    N_FE>Note: Deep neural network inference:<br>FaceNet / MobileFaceNet / ArcFace.<br><br>Output: L2-normalized embedding vector.]:::note
+    FE -.-> N_FE
+    
+    N_SBT>Note: Secure persistence of embedding vector.<br><br>Requirements:<br>- Encrypted storage<br>- Isolated application sandbox<br>- Non-reversible template representation]:::note
+    SBT -.-> N_SBT
+    
+    N_CSS>Note: Distance metrics:<br>- Euclidean L2<br>- Cosine similarity<br><br>Output: similarity score ∈ 0,1 or distance metric.]:::note
+    CSS -.-> N_CSS
+    
+    N_AS>Note: Identity confirmed based on similarity threshold.<br>Decision boundary satisfied.]:::note
+    AS -.-> N_AS
+    
+    N_AF>Note: No sufficient similarity with enrolled templates.<br>Decision rejected.]:::note
+    AF -.-> N_AF
+````
 ## Anti-spoofing: Feature Learning Approach for Deep Face Recognition
 
 The process of continuous authenticity verification of the digital wallet is based on a one-to-one facial biometric verification system, executed entirely in an embedded computing environment to safeguard the privacy and integrity of cryptographic data. During the initial onboarding integration phase, the system captures a photometric image that, after processing, acts as the anchor for the holder's identity. In subsequent operational interactions that require unequivocal proof of ownership, the architecture triggers a new reading cycle, performing validation against the first established primary instance. To enable this operation under rigorous memory and latency constraints on mobile devices, the infrastructure employs the coupling of ML Kit and TensorFlow Lite libraries.
