@@ -1,0 +1,11 @@
+# 1. Global Fallback Rule
+# Assigns default ownership to any file not covered by more specific rules below.
+
+* @maintainers
+
+# 2. Documentation and Threat Modeling
+# Ensures that modifications to DFDs, STRIDE matrices, or requirements do not introduce conceptual weaknesses.
+
+/wiki/      @contributors
+THREAT_MODEL.md      @contributors
+ARCHITECTURE.md      @contributors
