@@ -13,6 +13,7 @@
   - [Overview](#overview)
   - [Protocols](#protocols)
   - [Security](./wiki/security_app.md)
+  - [Engineering Architecture for Phygital Identity: Convergence Between ICAO 9303 and ISO 18013-5](./docs/mz.md)
   - [Anti-spoofing](./docs/anti-spoofing.md)
   - [Liveness](./docs/liveness.md)
   - [License](#license)
