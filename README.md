@@ -9,10 +9,12 @@
 
 - [EUDI Android Wallet Reference Application](#eudi-android-wallet-reference-application)
   - [Table of Contents](#table-of-contents)
+  - [List of Abbreviations](./docs/listofAbbreviations.md)
   - [Overview](#overview)
   - [Protocols](#protocols)
   - [Security](./wiki/security_app.md)
-- [Security Flow Overview](#security-flow-overview)
+  - [Security Flow Overview](#security-flow-overview)
+  - [Anti-spoofing](./docs/anti-spoofing.md)
   - [License](#license)
     - [License details](#license-details)
 
