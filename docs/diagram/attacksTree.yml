@@ -1,0 +1,110 @@
+# https://www.deciduous.app/
+
+facts:
+  - environment: "Mobile device in a hostile environment (Zero-Trust)"
+  - hardware_key_storage: "Keys generated in TEE/StrongBox (Hardware Isolation)"
+  - eudi_wallet_app: "Android client application managing the credential lifecycle"
+  - verifiable_credentials: "mDoc / mDL stored locally and processed modularly"
+  - sqlcipher_db: "Locally encrypted SQLite repository (AES-256-GCM)"
+  - fido2_auth: "Hardware-bound WebAuthn/FIDO2 authenticator for User Verification"
+  - oauth_pkce: "OIDC4VCI flow with Proof of Key (DPoP) and PKCE"
+  - ecdsa_signature_use: "Signatures based on elliptic curves (P-256/Brainpool)"
+
+mitigations:
+  - runtime_tamper_detection: "Implementation of RASP (Runtime Application Self-Protection) and Play Integrity API. Acts as a detective control."
+  - hardware_attestation: "Cryptographic verification of device integrity sent to the Issuer."
+  - keystore_binding: "SQLCipher key encrypted by a Master Key residing in the Android Keystore (requiring User Authentication)."
+  - strongbox_tee_enforcement: "ECDSA key generation with `setIsStrongBoxBacked(true)` flag. Prevents private key extraction."
+  - presentation_session_binding: "Use of ephemeral Nonces and channel encryption (Device Engagement) from the ISO 18013-5 standard to mitigate replay."
+  - tls_pinning_and_dpop: "Public key pinning (Certificate Transparency) and requirement of DPoP tokens bound to the device key."
+  - memory_zeroing: "Active overwriting of sensitive byte arrays after code block execution."
+  - liveness_detection: "Implementation of Presentation Attack Detection (PAD) with 3D biometrics to prevent FIDO2 bypass."
+  - hardware_certification: "Use of Secure Enclaves evaluated with Common Criteria EAL 4+ or higher against physical attacks."
+  - sast_dast_pipeline: "Static (CodeQL) and dynamic analysis in CI/CD to detect injection and memory corruption vulnerabilities."
+  - sca_and_sbom: "Dependency traceability (Software Bill of Materials) and blocking of vulnerable libraries."
+
+attacks:
+  - os_compromise: "OS-level privilege escalation (Root/Jailbreak) [STRIDE: Elevation of Privilege]"
+    from:
+      - environment
+      - runtime_tamper_detection:
+          backwards: true
+
+  - malicious_dependency_execution: "Execution of malicious code imported via third-party libraries (Supply Chain) [STRIDE: Tampering]"
+    from:
+      - environment
+      - sca_and_sbom:
+          backwards: true
+      - sast_dast_pipeline:
+          backwards: true
+
+  - firmware_tampering: "Boot chain tampering [STRIDE: Tampering]"
+    from:
+      - os_compromise
+      - hardware_attestation:
+          backwards: true
+
+  - tee_compromise: "Side-channel attack or physical exploitation of the Secure Enclave derived from compromised firmware [STRIDE: Elevation of Privilege]"
+    from:
+      - firmware_tampering
+      - hardware_certification:
+          backwards: true
+
+  - biometric_spoofing: "Use of masks, video injection, or digital clones to bypass FIDO2 User Verification [STRIDE: Spoofing]"
+    from:
+      - environment
+      - liveness_detection:
+          backwards: true
+
+  - runtime_memory_dump: "RAM extraction from the Wallet process [STRIDE: Information Disclosure]"
+    from:
+      - os_compromise
+      - memory_zeroing:
+          backwards: true
+
+  - sqlcipher_key_extraction: "Attempt to recover the database key [STRIDE: Information Disclosure]"
+    from:
+      - runtime_memory_dump
+      - keystore_binding:
+          backwards: true
+
+  - credential_exfiltration: "Decryption and extraction of Verifiable Credentials (mDoc/mDL) [STRIDE: Information Disclosure]"
+    from:
+      - sqlcipher_key_extraction
+      - malicious_dependency_execution
+
+  - ecdsa_signature_forgery: "Proof of possession forgery using extracted key or biometric bypass [STRIDE: Spoofing]"
+    from:
+      - tee_compromise
+      - biometric_spoofing
+      - strongbox_tee_enforcement:
+          backwards: true
+
+  - presentation_replay: "Interception and replay of the presentation token (BLE/NFC) [STRIDE: Spoofing/Tampering]"
+    from:
+      - environment
+      - presentation_session_binding:
+          backwards: true
+
+  - authorization_code_interception: "MitM in the OIDC4VCI flow during provisioning [STRIDE: Information Disclosure]"
+    from:
+      - environment
+      - malicious_dependency_execution
+      - tls_pinning_and_dpop:
+          backwards: true
+
+  - unauthorized_credential_issuance: "Fraudulent obtainment of newly issued credentials from the Issuer [STRIDE: Spoofing]"
+    from:
+      - authorization_code_interception
+
+goals:
+  - unauthorized_credential_presentation: "Successful presentation of credentials to a Relying Party by an unauthorized actor."
+    from:
+      - ecdsa_signature_forgery
+      - presentation_replay
+
+  - systemic_identity_theft: "Escalation to complete identity theft and financial fraud."
+    from:
+      - unauthorized_credential_presentation
+      - credential_exfiltration
+      - unauthorized_credential_issuance
