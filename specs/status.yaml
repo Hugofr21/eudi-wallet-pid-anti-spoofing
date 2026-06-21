@@ -1,3 +1,10 @@
+---
+title: Status Version
+version: v1.0.0-draft
+status: draft
+editor: @hugofr21
+---
+
 version: "1.0.0"
 
 status: awaiting-ip-review

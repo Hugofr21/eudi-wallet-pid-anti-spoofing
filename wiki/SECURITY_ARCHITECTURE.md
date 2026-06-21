@@ -1,5 +1,5 @@
 # Security Architecture & Threat Model
-
+[View details STRIDE](./STRIDE.MD)
 ## 1. System Context and Trust Boundaries
 This document outlines the formal threat model for the Mobile Identity Wallet, evaluated under a strict **Zero-Trust architecture**. The application operates in potentially hostile mobile environments, requiring robust hardware-backed cryptographic guarantees.
 
