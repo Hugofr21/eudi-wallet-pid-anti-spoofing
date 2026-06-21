@@ -47,8 +47,8 @@ more detailed information on how to get started, contribute, and engage with
 the EUDI Wallet Reference Implementation.
 
 ## Protocols
-
-- **OpenID Federation** for OpenID Connect 1.1
+- **OAuth2.0**
+- **OpenID Federation** for OpenID Connect 1.1
 - **OpenID Connect** for Verifiable Credential Issuance
 - **OpenID Connect** for Verifiable Presentations
 
@@ -65,7 +65,7 @@ The EUDI Android Wallet adopts a defense-in-depth approach that combines strong 
 
 Copyright (c) 2026 European Commission
 
-Licensed under the European Union Public Licence (EUPL) version 1.2 or,
+Licensed under the European Union Public Licence (EUPL) version 1.2 or,
 as soon as it is approved by the European Commission, any subsequent
 version of the EUPL (the “Licence”). You may not use this work except in
 compliance with the Licence.
