@@ -37,6 +37,10 @@ class AndroidApplicationConventionPlugin : Plugin<Project> {
                 apply("project.owasp.dependency.check")
                 apply("project.sonar")
                 apply("androidx.baselineprofile")
+
+                // CycloneDX SBOM generation
+                apply("org.cyclonedx.bom")
+
             }
 
             extensions.configure<ApplicationExtension> {

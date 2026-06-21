@@ -97,6 +97,8 @@ cameraViewVersion = "1.6.0"
 runtime = "1.10.6"
 uiGraphicsVersion = "1.10.6"
 
+cyclonedx = "3.2.4"
+
 [libraries]
 accompanist-permissions = { group = "com.google.accompanist", name = "accompanist-permissions", version.ref = "accompanist" }
 accompanist-testharness = { group = "com.google.accompanist", name = "accompanist-testharness", version.ref = "accompanist" }
@@ -248,3 +250,5 @@ kotlinx-kover = { id = "org.jetbrains.kotlinx.kover", version.ref = "kover" }
 sonar = { id = "org.sonarqube", version.ref = "sonar" }
 baselineprofile = { id = "androidx.baselineprofile", version.ref = "baselineprofile" }
 androidx-room = { id = "androidx.room", version.ref = "androidxRoom" }
+
+cyclonedx = { id = "org.cyclonedx.bom", version.ref = "cyclonedx" }
